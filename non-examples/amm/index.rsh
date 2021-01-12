@@ -1,49 +1,49 @@
 'reach 0.1';
 
-const [isProviderAction, DEPOSIT, WITHDRAW] = makeEnum(2);
-
 const Swap = Object({
   amtIn: UInt,
-  amtInTok: Token,
+  amtInTok: UInt,
+  amtOutTok: UInt,
 });
 
 const PARTICIPANTS = [
   // XXX: Feature - Better specification of entities
   Participant('Admin', {
     formulaValuation: UInt, // k
-    active: Bool,
     shouldClosePool: Fun([], Bool),
   }),
   Class('Provider', {
-    shouldDepositOrWithdraw: Fun([], Bool),
-    getAction: Fun([], Tuple(UInt, UInt)),
+    wantsToDeposit: Fun([], Bool),
+    wantsToWithdraw: Fun([], Bool),
+    getDeposit: Fun([], UInt),
+    getWithdrawal: Fun([], UInt),
   }),
   Class('Trader', {
     shouldTrade: Fun([], Bool),
     getTrade: Fun([], Swap),
   }),
+
   // XXX: Feature - Non-network token consumption
-  Token('TokA', tokBWeight),
-  Token('TokB', tokAWeight),
+  Token,
+  Token,
+  // XXX: Feature - Token container (map-container-that-is-a-token)
+  // JM: Because of Algorand, we'll need to have a built-in notion of a map-container-that-is-a-token and this would be an argument to Reach.DApp
+  MintedToken,
 ];
 
 // https://github.com/Uniswap/uniswap-v2-core/blob/4dd59067c76dea4a0e8e4bfdda41877a6b16dedc/contracts/UniswapV2Pair.sol#L73-L86
-const update = (pool, balances, tokens) => {
+const update = (balances, tokens) => {
   // Update cumulative price if tracking
-
-  // Update reserve of tokens in pool
-  Array.zip(balances, tokens)
-    .map(([ bal, t ]) => { pool[t] = bal; });
 }
 
 // tokens must be transferred to pairs before swap is called
 // https://github.com/Uniswap/uniswap-v2-core/blob/4dd59067c76dea4a0e8e4bfdda41877a6b16dedc/contracts/UniswapV2Pair.sol#L159-L183
-const swap = (amtOuts, to, Tokens, pool, market) => {
+const swap = (amtOuts, to, tokens, market) => {
   // Assert at least 1 token out
   assert(amtOuts.any(amt => amt > 0), "Insufficient amount out");
 
   // Reserves is how many of each token is in pool.
-  const reserves = Tokens.map(t => pool[t]);
+  const reserves = market.tokens.map(t => t.balance);
 
   // Assert amount outs are less than reserves of each token
   Array.zip(reserves, amtOuts).forEach(([reserve, amtOut]) =>
@@ -51,30 +51,17 @@ const swap = (amtOuts, to, Tokens, pool, market) => {
 
   // Optimistically transfer the given amount of tokens
   // XXX: Feature - Pay in a specified token
-  Array.zip(Tokens, amtOuts).forEach(([t, amtOut]) =>
-    pay(t, amtOut).to(to));
+  Array.zip(tokens, amtOuts)
+    .forEach(([ tok, amtOut ]) =>
+      transfer(amtOut).currency(tok).to(to));
 
-  const balances = market.tokens.map(t => t.balance);
-
-  const amtIns = Array.iota(Tokens.length)
-    .map(i => [ balances[i], reserves[i], amtOuts[i] ])
-    .map(([ bal, res, amtOut]) =>
-      bal > res - amtOut ? bal - (res - amtOut) : 0);
-
-  assert(amtIns.any(amt => amt > 0), "Insufficient input amount");
-
-  // Adjustment for fees:  trading fee is applied by reducing the
-  // amount paid into the contract by 0.3% before enforcing the
-  // constant-product invariant.
-  const adjustedBalances = Array.zip(balances, amtIns)
-    .map(([ bal, amtIn ]) => bal * 1000 - amtIn * 3);
+  // This gets the balance of the specified token in the contract
+  const balances = tokens.map(balanceOf);
 
   // XXX: Stdlib Fn - Product of array
-  assert(adjustedBalances.product() >= reserves.product() * 1000000, "K");
+  assert(balances.product() >= reserves.map(b => b * 1000).product(), "K");
 
-  update(pool, balances, tokens);
-
-  return [ true, pool, market ];
+  // update(balances, tokens);
 };
 
 // Uniswap function for 2 tokens. Take into account .3% fee
@@ -92,13 +79,12 @@ export const main =
   Reach.App(
     {},
     PARTICIPANTS,
-    (Admin, Provider, Trader) => {
+    (Admin, Provider, Trader, TokA, TokB, initialPool) => {
 
       Admin.only(() => {
         const formulaValuation = declassify(interact.formulaValuation);
-        const active = declassify(interact.active);
       });
-      Admin.publish(formulaValuation, active);
+      Admin.publish(formulaValuation);
 
       /*
         market : Object({
@@ -112,12 +98,8 @@ export const main =
       */
       const initialMarket = {
         params: formulaValuation,
-        tokens: array(Token, [TokA, TokB]).map(tok =>
-          ({ tok: tok, balance: 0 })),
+        tokens: Array.replicate(2, { balance: 0 }),
       };
-
-      // XXX: Feature - Map container
-      const initialPool = new Map(Address); // Address (Token) -> balance
 
       // Produces pool tokens   (1 type)
       // Consumes market tokens (n type)
@@ -136,44 +118,49 @@ export const main =
           .case(
             Provider,
             (() => ({
-              msg: declassify(interact.getAction()),
-              when: declassify(interact.shouldDepositOrWithdraw()),
+              msg: declassify(interact.getWithdrawal()),
+              when: declassify(interact.wantsToWithdraw()),
             })),
-            (([action, amt]) => {
-              switch (action) {
-                case DEPOSIT: { }
-                case WITHDRAW: { }
-              }
-            }))
+            ((args) => {}))
+          .case(
+            Provider,
+            (() => ({
+              msg: declassify(interact.getDeposit()),
+              when: declassify(interact.wantsToDeposit()),
+            })),
+            ((args) => {}))
           .case(
             Trader,
             (() => ({
               msg: declassify(interact.getTrade()),
               when: declassify(interact.shouldMakeTrade()),
             })),
+            // XXX Feature - allow PAY_EXPR to additionally capture Token type for payment
+            (({ amtIn, amtInTok }) => [ amtIn, amtInTok ]),
             (({ amtIn, amtInTok }) => {
               // Calculate amount out
-              const isTokA = amtInTok == TokA;
-              const [ reserveIn, reserveOut ]  =
-                isTokA
-                  ? [ pool[TokA], pool[TokB] ]
-                  : [ pool[TokB], pool[TokA] ];
+              const reserveIn  = market.tokens[amtInTok].balance;
+              const reserveOut = market.tokens[amtOutTok].balance;
               const amtOut  = getAmountOut(amtIn, reserveIn, reserveOut);
-              const amtOuts = array(UInt, isTokA ? [amtOut, 0] : [0, amtOut]);
 
-              // Trader pays amount in
-              Trader.pay(amtInTok, amtIn);
+              // Get all outs and ins for tokens
+              const mtArr = Array.replicate(market.tokens.length, 0);
+              const amtOuts = mtArr.set(amtOutTok, amtOut);
+              const amtIns  = mtArr.set(amtInTok, amtIn);
 
               // Update market token balance
-              const amtIns = array(UInt, isTokA ? [amtIn, 0] : [0, amtIn]);
-              Array.zip(market.tokens, amtIns)
-                .map(([ mt, amtIn ]) => mt.balance += amtIn);
-              Array.zip(market.tokens, amtOuts)
-                .map(([ mt, amtOut ]) => mt.balance -= amtOut);
+              const updatedMarket = {
+                params: market.params,
+                tokens: Array.zip( market.tokens, Array.zip(amtIns, amtOuts) )
+                  .map(([ tp, [amtIn, amtOut] ]) =>
+                    ({ balance: tp.balance + amtIn - amtOut })),
+              };
 
               const to = this;
-              return swap(amtOuts, to, Tokens, pool, market);
+              swap(amtOuts, to, [tokA, tokB], updatedMarket);
+              return [ true, pool, updatedMarket ];
             }))
+          // JM: Never time out
           .timeout(UInt.max, () => { // Never timeout?
             race(Admin, Provider, Trader).publish();
             return [ false, pool, market ]; })
