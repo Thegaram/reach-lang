@@ -40,13 +40,6 @@ const PARTICIPANTS = [
 const getReserves = (market) =>
   market.tokens.map(t => t.balance);
 
-// https://github.com/Uniswap/uniswap-v2-core/blob/4dd59067c76dea4a0e8e4bfdda41877a6b16dedc/contracts/UniswapV2Pair.sol#L73-L86
-const update = (balances, tokens) => {
-  // Update cumulative price if tracking
-}
-
-// tokens must be transferred to pairs before swap is called
-// https://github.com/Uniswap/uniswap-v2-core/blob/4dd59067c76dea4a0e8e4bfdda41877a6b16dedc/contracts/UniswapV2Pair.sol#L159-L183
 const swap = (amtIns, amtOuts, to, tokens, market) => {
   // Assert at least 1 token out
   assert(amtOuts.any(amt => amt > 0), "Insufficient amount out");
@@ -74,11 +67,11 @@ const swap = (amtIns, amtOuts, to, tokens, market) => {
   // XXX: Stdlib Fn - Product of array
   assert(balances.product() >= reserves.product(), "K");
 
-  // update(balances, tokens);
+  // Update cumulative price if tracking
+  return updatedMarket;
 };
 
-// Uniswap function for 2 tokens. Take into account .3% fee
-// https://github.com/Uniswap/uniswap-api/blob/8bcfc4591ba8c5fb2d79e2399259bdee980e81bb/src/utils/computeBidsAsks.ts#L3-L16
+// Take into account .3% fee
 const getAmountOut = (amtIn, reserveIn, reserveOut) => {
   // Calculate what amountIn was prior to fees
   const adjustedIn = amtIn * 997 / 1000;
