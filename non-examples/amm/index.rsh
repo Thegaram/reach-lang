@@ -7,8 +7,9 @@ const Swap = Object({
 });
 
 const Deposit = Object({
-  amtInTokA: UInt,
-  amtInTokB: UInt,
+  // XXX Feature: Need to access compile time arg
+  // of how many tokens will be in market
+  amtIns: Array(UInt, argv(1)),
 });
 
 const PARTICIPANTS = [
@@ -28,8 +29,9 @@ const PARTICIPANTS = [
   }),
 
   // XXX: Feature - Non-network token consumption
-  Token,
-  Token,
+  // Token, Token       // Uniswap, specify 2
+  Tokens,               // Generalized array of N tokens
+
   // XXX: Feature - Token container (map-container-that-is-a-token)
   // JM: Because of Algorand, we'll need to have a built-in notion of a map-container-that-is-a-token and this would be an argument to Reach.DApp
   MintedToken,
@@ -102,7 +104,8 @@ export const main =
   Reach.App(
     {},
     PARTICIPANTS,
-    (Admin, Provider, Trader, TokA, TokB, initialPool) => {
+    // tokens will only be used to grab balances, transfer, pay
+    (Admin, Provider, Trader, tokens, initialPool) => {
 
       Admin.only(() => {
         const formulaValuation = declassify(interact.formulaValuation);
@@ -121,12 +124,10 @@ export const main =
       */
       const initialMarket = {
         params: formulaValuation,
-        tokens: Array.replicate(2, { balance: 0 }),
+        tokens: Array.replicate(tokens.length, { balance: 0 }),
       };
 
-      const mtArr = Array.replicate(market.tokens.length, 0);
-      // Will only be used to grab balances, transfer, pay
-      const tokens = array(Token, [tokA, tokB]);
+      const mtArr = Array.replicate(tokens.length, 0);
 
       const [ alive, pool, market ] =
         parallel_reduce([ true, initialPool, initialMarket ])
@@ -178,11 +179,9 @@ export const main =
               when: declassify(interact.wantsToDeposit()),
             })),
             // XXX Feature: allow PAY_EXPR to make multiple payments in different currencies
-            (({ amtInTokA, amtInTokB }) =>
-              [ [ TokA, amtInTokA ], [ TokB, amtInTokB ] ])
-            (({ amtInTokA, amtInTokB }) => {
+            (({ amtIns }) => Array.zip(tokens, amtIns))
+            (({ amtIns }) => {
 
-              const amtIns = array(UInt, [ amtInTokA, amtInTokB ]);
               const startingReserves = getReserves(market);
 
               // This will happen after payment :/
@@ -202,7 +201,7 @@ export const main =
               */
               const minted = pool.totalSupply() == 0
                 // XXX Stdlib Fn: Square root
-                ? sqrt(amtInTokA * amtInTokB)
+                ? sqrt(amtIns.product())
                 // XXX Stdlib Fn: Average of int array
                 : Array.zip(startingReserves, amtIns)
                   .map(([ sIn, amtIn ]) => (amtIn / sIn) * pool.totalSupply())
@@ -240,8 +239,7 @@ export const main =
 
               return [ true, pool, updatedMarket ];
             }))
-          // JM: Never time out
-          .timeout(UInt.max, () => { // Never timeout?
+          .timeout(UInt.max, () => { // Never timeout
             race(Admin, Provider, Trader).publish();
             return [ false, pool, market ]; })
 
