@@ -312,11 +312,9 @@ set_to_seq :: S.Set a -> Seq.Seq a
 set_to_seq = Seq.fromList . S.toList
 
 depthGe :: Int -> SExpr -> Bool
-depthGe = aux
-  where
-    aux 0 _         = True
-    aux nc (List xs) = any (aux (nc - 1)) xs
-    aux _ (Atom _)  = False
+depthGe 0 _ = True
+depthGe n (List xs) = any (depthGe (n - 1)) xs
+depthGe _ (Atom _)  = False
 
 get :: M.Map String SExpr -> M.Map String (a, b, c, Maybe SExpr) -> SExpr -> (M.Map String SExpr, SExpr)
 get env bindings (Atom mi) =
