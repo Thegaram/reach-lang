@@ -348,7 +348,9 @@ subAllVars :: M.Map String (Maybe DLVar, SrcLoc, BindingOrigin, Maybe SExpr) -> 
 subAllVars bindings se =
   let (env, acc) = get M.empty bindings se in
   let assigns = map (\ (k, v) -> List [Atom k, v]) $ M.toList env in
-  List $ Atom "let*" : assigns <> [acc]
+  case assigns of
+    [] -> acc
+    _  -> List $ Atom "let*" : assigns <> [acc]
 
 
 --- FYI, the last version that had Dan's display code was
