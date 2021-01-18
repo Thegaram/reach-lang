@@ -8,7 +8,20 @@ Verification failed:
   at ./index-error.rsh:29:11:application
 
   Theorem formalization:
-  v52
+  (let*
+   (v37
+      (+
+         (+
+            (+ 0 0)
+            interact_Alice_request)
+         0))
+   (v52
+      (=
+         0
+         (-
+            v37
+            (- interact_Alice_request 1))))
+   v52)
 
   This could be violated if...
     "interact_Alice_request" = 1

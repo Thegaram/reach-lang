@@ -8,7 +8,7 @@ Verification failed:
   at ./assert_gt.rsh:9:7:after expr stmt semicolon call to [unknown function] (defined at: ./assert_gt.rsh:5:15:function exp)
 
   Theorem formalization:
-  v4
+  (> v3 0)
 
   This could be violated if...
     "v3" = 0

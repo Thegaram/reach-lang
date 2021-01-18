@@ -7,7 +7,7 @@ Verification failed:
   at ./class_addr.rsh:16:14:application
 
   Theorem formalization:
-  v28
+  (= classAddr1 classAddr15)
 
   This could be violated if...
 

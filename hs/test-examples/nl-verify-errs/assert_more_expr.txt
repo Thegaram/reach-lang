@@ -8,7 +8,9 @@ Verification failed:
   at ./assert_more_expr.rsh:12:7:after expr stmt semicolon call to [unknown function] (defined at: ./assert_more_expr.rsh:7:15:function exp)
 
   Theorem formalization:
-  v10
+  (=
+   (+ v3 v4)
+   (* v3 2))
 
   This could be violated if...
     "v3" = 0

@@ -8,7 +8,9 @@ Verification failed:
   at ./overflow_con.rsh:application
 
   Theorem formalization:
-  v17
+  (<=
+   v3
+   (- dlc_UInt_max 1))
 
   This could be violated if...
     "dlc_UInt_max" = 1

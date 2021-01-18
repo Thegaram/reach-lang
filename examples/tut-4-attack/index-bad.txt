@@ -8,7 +8,48 @@ Verification failed:
   at ./index-bad.rsh:45:11:application
 
   Theorem formalization:
-  v76
+  (let*
+   (v34
+      (-
+         4
+         (mod
+            (+ v3 1)
+            3)))
+   (v44
+      (=
+         (mod
+            (+ v3 v34)
+            3)
+         0))
+   (v46
+      (=
+         (mod
+            (+ v3 v34)
+            3)
+         1))
+   (v51
+      (ite
+         v44
+         (T2_cons 0 1)
+         (ite
+            v46
+            (T2_cons 1 1)
+            (T2_cons 2 0))))
+   (v60
+      (-
+         (+
+            (+ 0 interact_Alice_wager)
+            interact_Alice_wager)
+         (*
+            (T2_elem0 v51)
+            interact_Alice_wager)))
+   (v67
+      (-
+         v60
+         (*
+            (T2_elem1 v51)
+            interact_Alice_wager)))
+   (= 0 v67))
 
   This could be violated if...
     "interact_Alice_wager" = 1
